@@ -6,22 +6,26 @@
 <title>Geoökologische Kartierung – KI-Protokoll</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://unpkg.com/docx@9/build/index.umd.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{--ink:#1f2620;--soil:#5b4a36;--moss:#3f5b3a;--moss-d:#2c4129;--stone:#e9e6dd;--paper:#f7f5ef;--line:#c8c2b3;--warn:#8a3b2a;--field:#fff;--mark:#fff3a3}
   *{box-sizing:border-box}
   html,body{margin:0}
-  body{font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;color:var(--ink);background:var(--paper);line-height:1.45;font-size:15px}
+  body{font-family:"Inter","Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;color:var(--ink);background:var(--paper);line-height:1.45;font-size:15px}
   .wrap{max-width:980px;margin:0 auto;padding:0 20px 80px}
 
   header.app{background:var(--moss-d);color:var(--stone);padding:22px 0;margin-bottom:26px;border-bottom:4px solid var(--soil)}
   header.app .wrap{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
-  header.app h1{font-family:Georgia,serif;font-weight:600;font-size:24px;margin:0}
+  header.app h1{font-family:"Inter",sans-serif;font-weight:700;font-size:24px;margin:0;letter-spacing:-.2px}
   header.app p{margin:4px 0 0;font-size:13px;opacity:.85}
   .keystate{font-size:12px;border:1px solid rgba(255,255,255,.35);padding:5px 10px;border-radius:2px;cursor:pointer;color:var(--stone);background:transparent}
   .keystate:hover{background:rgba(255,255,255,.12)}
 
   fieldset{border:1px solid var(--line);border-radius:4px;margin:0 0 20px;padding:16px 18px 18px;background:#fff}
-  legend{font-family:Georgia,serif;font-weight:600;font-size:16px;color:var(--moss-d);padding:0 8px}
+  legend{font-family:"Inter",sans-serif;font-weight:600;font-size:16px;color:var(--moss-d);padding:0 8px}
   label{display:block;font-size:12px;font-weight:600;color:var(--soil);margin-bottom:4px}
   textarea,input,select{width:100%;font-family:inherit;font-size:14px;color:var(--ink);border:1px solid var(--line);border-radius:3px;padding:8px 10px;background:var(--field)}
   textarea{resize:vertical}
@@ -77,7 +81,7 @@
   /* Modal */
   .overlay{position:fixed;inset:0;background:rgba(31,38,32,.6);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px}
   .modal{background:#fff;border-radius:6px;max-width:520px;width:100%;padding:24px 26px;border-top:5px solid var(--moss)}
-  .modal h2{font-family:Georgia,serif;margin:0 0 6px;color:var(--moss-d)}
+  .modal h2{font-family:"Inter",sans-serif;font-weight:600;margin:0 0 6px;color:var(--moss-d)}
   .modal p{font-size:13px;color:var(--soil);margin:0 0 14px}
   .modal .note{font-size:12px;color:var(--warn);margin-top:10px}
 
@@ -138,7 +142,7 @@
   <div class="wrap">
     <div>
       <h1>Geoökologische Kartierung</h1>
-      <p>Notiz + Fotos → standardisiertes Protokoll</p>
+      <p>Notiz + Fotos → standardisiertes Protokoll · <span id="ver">v1.0</span></p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="keystate" id="keyState" onclick="openKeyModal()">Key: —</button>
@@ -189,6 +193,29 @@
 let apiKey="", model="claude-sonnet-4-6";
 let ghOwner="", ghRepo="", ghToken="";
 let lastData=null, lastInput={};
+
+/* ============================================================
+   FEST EINGETRAGENE ZUGANGSDATEN  (optional)
+   ------------------------------------------------------------
+   Hier Key/Token direkt eintragen -> App startet ohne Abfrage.
+   WARNUNG: Wenn diese Datei öffentlich gehostet wird (z. B.
+   öffentliches GitHub-Pages-Repo), sind diese Schlüssel für JEDEN
+   im Internet lesbar und können auf deine Kosten missbraucht werden.
+   Leer lassen = normale Eingabe per Fenster.
+   ============================================================ */
+const HARDCODED = {
+  apiKey:  "",                       // z. B. "sk-ant-..."
+  model:   "claude-sonnet-4-6",      // claude-sonnet-4-6 | claude-opus-4-8 | claude-haiku-4-5-20251001
+  ghOwner: "",                       // GitHub-Benutzername, z. B. "allawallabedalla"
+  ghRepo:  "",                       // Repo-Name, z. B. "Kartierung"
+  ghToken: ""                        // z. B. "github_pat_..."
+};
+function applyHardcoded(){
+  if(HARDCODED.apiKey){ apiKey=HARDCODED.apiKey; if(HARDCODED.model) model=HARDCODED.model; }
+  if(HARDCODED.ghOwner) ghOwner=HARDCODED.ghOwner;
+  if(HARDCODED.ghRepo)  ghRepo=HARDCODED.ghRepo;
+  if(HARDCODED.ghToken) ghToken=HARDCODED.ghToken;
+}
 function openKeyModal(){document.getElementById("keyInput").value=apiKey;document.getElementById("modelSel").value=model;document.getElementById("keyModal").style.display="flex";}
 function saveKey(){apiKey=document.getElementById("keyInput").value.trim();model=document.getElementById("modelSel").value;
   try{ if(document.getElementById("remember").checked){localStorage.setItem("geo_key",apiKey);localStorage.setItem("geo_model",model);} else {localStorage.removeItem("geo_key");localStorage.removeItem("geo_model");} }catch(e){}
@@ -196,7 +223,7 @@ function saveKey(){apiKey=document.getElementById("keyInput").value.trim();model
   document.getElementById("keyModal").style.display="none";updateKeyState();}
 function updateKeyState(){document.getElementById("keyState").textContent=apiKey?("Key: aktiv ✓ ("+model+")"):"Key: —";}
 function forgetKey(){apiKey="";try{localStorage.removeItem("geo_key");localStorage.removeItem("geo_model");}catch(e){}document.getElementById("keyInput").value="";const r=document.getElementById("remember");if(r)r.checked=false;updateKeyState();}
-function initKey(){try{const k=localStorage.getItem("geo_key"),m=localStorage.getItem("geo_model");if(k){apiKey=k;if(m)model=m;updateKeyState();const r=document.getElementById("remember");if(r)r.checked=true;return;}}catch(e){}openKeyModal();}
+function initKey(){ if(apiKey){updateKeyState();return;} try{const k=localStorage.getItem("geo_key"),m=localStorage.getItem("geo_model");if(k){apiKey=k;if(m)model=m;updateKeyState();const r=document.getElementById("remember");if(r)r.checked=true;return;}}catch(e){}openKeyModal();}
 
 function openGhModal(){document.getElementById("ghOwnerIn").value=ghOwner;document.getElementById("ghRepoIn").value=ghRepo;document.getElementById("ghTokenIn").value=ghToken;document.getElementById("ghModal").style.display="flex";}
 function closeGh(){document.getElementById("ghModal").style.display="none";}
@@ -424,7 +451,61 @@ async function exportPDF(){
 
 /* ---------- GitHub-Speicher ---------- */
 function b64utf8(str){return btoa(unescape(encodeURIComponent(str)));}
+function b64ToBytes(b64){const bin=atob(b64);const a=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)a[i]=bin.charCodeAt(i);return a;}
 function blobToB64(blob){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(",")[1]);r.onerror=rej;r.readAsDataURL(blob);});}
+
+async function buildDocxBlob(){
+  if(!window.docx) throw new Error("DOCX-Bibliothek nicht geladen – Internetverbindung nötig.");
+  const D=window.docx;
+  const h=(lastData&&lastData.head)||{};
+  const clean=v=>(v===undefined||v===null)?"":(/^\(.*\)$/.test(String(v).trim())?"":String(v));
+  const children=[];
+  children.push(new D.Paragraph({heading:D.HeadingLevel.HEADING_1,children:[new D.TextRun("Protokoll – Geoökologische Kartierung")]}));
+  children.push(new D.Paragraph({children:[new D.TextRun({text:(clean(h.projekt)||"(Bauvorhaben offen)")+" · erstellt am "+new Date().toLocaleDateString("de-DE"),italics:true,size:18})]}));
+  function section(title,rows){
+    const r=rows.filter(x=>clean(x.value)!=="");
+    if(!r.length) return;
+    children.push(new D.Paragraph({heading:D.HeadingLevel.HEADING_2,spacing:{before:220},children:[new D.TextRun(title)]}));
+    children.push(new D.Table({width:{size:100,type:D.WidthType.PERCENTAGE},rows:r.map(x=>new D.TableRow({children:[
+      new D.TableCell({width:{size:32,type:D.WidthType.PERCENTAGE},children:[new D.Paragraph({children:[new D.TextRun({text:x.label,bold:true})]})]}),
+      new D.TableCell({children:[new D.Paragraph({children:[new D.TextRun({text:clean(x.value),highlight:x.uncertain?"yellow":undefined})]})]})
+    ]}))}));
+  }
+  section("Projektangaben",[
+    {label:"Bauvorhaben",value:h.projekt,uncertain:UNS.has("head.projekt")},
+    {label:"Projekt-Nr.",value:h.nr,uncertain:UNS.has("head.nr")},
+    {label:"Auftraggeber",value:h.ag,uncertain:UNS.has("head.ag")},
+    {label:"Bearbeiter",value:h.bearb,uncertain:UNS.has("head.bearb")},
+    {label:"Datum der Begehung",value:h.datum,uncertain:UNS.has("head.datum")},
+    {label:"Witterung",value:h.wetter,uncertain:UNS.has("head.wetter")},
+    {label:"Naturraum",value:h.naturraum,uncertain:UNS.has("head.naturraum")},
+    {label:"Untersuchungsraum / Lage",value:h.lage,uncertain:UNS.has("head.lage")},
+    {label:"Grundlagen / Verfahren",value:h.grundlagen,uncertain:UNS.has("head.grundlagen")}
+  ]);
+  const pts=Array.isArray(lastData.points)?lastData.points:[];
+  pts.forEach((p,i)=>{
+    const title=clean(p.nr)||("Punkt "+(i+1));
+    section("Kartierpunkt: "+title, PFIELDS.filter(([k])=>k!=="nr").map(([k,lab])=>({label:lab,value:p[k],uncertain:UNS.has("points."+i+"."+k)})));
+  });
+  if(images.length){
+    children.push(new D.Paragraph({heading:D.HeadingLevel.HEADING_2,spacing:{before:220},children:[new D.TextRun("Fotodokumentation")]}));
+    const caps={};(Array.isArray(lastData.photos)?lastData.photos:[]).forEach(ph=>caps[ph.idx]=ph);
+    for(let i=0;i<images.length;i++){
+      children.push(new D.Paragraph({children:[new D.ImageRun({type:"jpg",data:b64ToBytes(images[i].b64),transformation:{width:380,height:285}})]}));
+      const cap=caps[i]?clean(caps[i].caption):"";
+      children.push(new D.Paragraph({children:[new D.TextRun({text:"Foto "+(i+1)+(cap?": "+cap:""),size:16,italics:true})]}));
+    }
+  }
+  const s=lastData.summary||{};
+  section("Bewertung & Maßnahmen",[
+    {label:"Schutzgebiete / Restriktionen",value:s.schutz,uncertain:UNS.has("summary.schutz")},
+    {label:"Gesamtbewertung / Eingriffsrelevanz",value:s.bewertung,uncertain:UNS.has("summary.bewertung")},
+    {label:"Empfohlene Maßnahmen",value:s.massnahmen,uncertain:UNS.has("summary.massnahmen")},
+    {label:"Sonstige Bemerkungen",value:s.bemerk,uncertain:UNS.has("summary.bemerk")}
+  ]);
+  const doc=new D.Document({sections:[{children}]});
+  return await D.Packer.toBlob(doc);
+}
 async function ghPut(path,contentB64,message){
   const url="https://api.github.com/repos/"+ghOwner+"/"+ghRepo+"/contents/"+path.split("/").map(encodeURIComponent).join("/");
   const headers={"Authorization":"Bearer "+ghToken,"Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28","Content-Type":"application/json"};
@@ -450,6 +531,8 @@ async function saveToGithub(){
 
     btn.textContent="… PDF"; const pdfB64=await blobToB64(await buildPdfBlob());
     btn.textContent="… speichere Protokoll"; await ghPut(base+"/protokoll.pdf",pdfB64,"Protokoll "+san);
+    btn.textContent="… Word"; const docxB64=await blobToB64(await buildDocxBlob());
+    await ghPut(base+"/protokoll.docx",docxB64,"Protokoll (docx) "+san);
     const eingabe={erstellt:new Date().toISOString(),modell:model,notiz:(lastInput.note||""),antworten:(lastInput.answers||""),protokoll:lastData};
     btn.textContent="… speichere Daten"; await ghPut(base+"/eingabe.json",b64utf8(JSON.stringify(eingabe,null,2)),"Eingabedaten "+san);
     for(let i=0;i<images.length;i++){ btn.textContent="… Bild "+(i+1)+"/"+images.length; await ghPut(base+"/bilder/foto"+(i+1)+".jpg",images[i].b64,"Foto "+(i+1)+" "+san); }
@@ -459,6 +542,7 @@ async function saveToGithub(){
 }
 
 /* ---------- Start ---------- */
+applyHardcoded();
 readHashCreds();
 initKey();
 initGh();
