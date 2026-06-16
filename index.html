@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Geoökologische Kartierung – KI-Protokoll</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root{--ink:#1f2620;--soil:#5b4a36;--moss:#3f5b3a;--moss-d:#2c4129;--stone:#e9e6dd;--paper:#f7f5ef;--line:#c8c2b3;--warn:#8a3b2a;--field:#fff;--mark:#fff3a3}
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;color:var(--ink);background:var(--paper);line-height:1.45;font-size:15px}
+  .wrap{max-width:980px;margin:0 auto;padding:0 20px 80px}
+
+  header.app{background:var(--moss-d);color:var(--stone);padding:22px 0;margin-bottom:26px;border-bottom:4px solid var(--soil)}
+  header.app .wrap{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  header.app h1{font-family:Georgia,serif;font-weight:600;font-size:24px;margin:0}
+  header.app p{margin:4px 0 0;font-size:13px;opacity:.85}
+  .keystate{font-size:12px;border:1px solid rgba(255,255,255,.35);padding:5px 10px;border-radius:2px;cursor:pointer;color:var(--stone);background:transparent}
+  .keystate:hover{background:rgba(255,255,255,.12)}
+
+  fieldset{border:1px solid var(--line);border-radius:4px;margin:0 0 20px;padding:16px 18px 18px;background:#fff}
+  legend{font-family:Georgia,serif;font-weight:600;font-size:16px;color:var(--moss-d);padding:0 8px}
+  label{display:block;font-size:12px;font-weight:600;color:var(--soil);margin-bottom:4px}
+  textarea,input,select{width:100%;font-family:inherit;font-size:14px;color:var(--ink);border:1px solid var(--line);border-radius:3px;padding:8px 10px;background:var(--field)}
+  textarea{resize:vertical}
+  #note{min-height:150px}
+  textarea:focus,input:focus,select:focus{outline:2px solid var(--moss);border-color:var(--moss)}
+
+  .thumbs{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
+  .thumb{position:relative;width:96px}
+  .thumb img{width:96px;height:72px;object-fit:cover;border:1px solid var(--line);border-radius:3px;background:var(--stone)}
+  .thumb button{position:absolute;top:-7px;right:-7px;width:22px;height:22px;padding:0;border-radius:50%;line-height:1;background:#fff;color:var(--warn);border:1px solid var(--warn)}
+  .thumb span{display:block;font-size:11px;color:var(--soil);text-align:center;margin-top:2px}
+
+  button{font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;border:1px solid var(--moss-d);background:var(--moss);color:#fff;border-radius:3px;padding:9px 16px}
+  button:hover{background:var(--moss-d)}
+  button:disabled{opacity:.55;cursor:wait}
+  button.ghost{background:#fff;color:var(--moss-d)}
+  button.ghost:hover{background:var(--stone)}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:6px}
+  .hint{font-size:12px;color:var(--soil)}
+
+  /* Rückfragen */
+  #questions{display:none;border:1px solid #d9b54a;background:#fdf7e3;border-radius:4px;padding:14px 16px;margin:0 0 20px}
+  #questions.show{display:block}
+  #questions h3{margin:0 0 8px;font-family:Georgia,serif;color:#7a5c12;font-size:15px}
+  #questions ul{margin:0 0 10px 18px;padding:0;font-size:14px}
+  #questions li{margin-bottom:4px}
+
+  .legend{font-size:12px;color:var(--soil);margin:0 0 12px}
+  .legend mark{padding:0 4px}
+
+  /* Ergebnis = Protokoll (WYSIWYG, editierbar) */
+  mark{background:var(--mark);padding:0 2px;border-radius:2px}
+  #result{display:none;background:#fff;color:#000;border:1px solid var(--line);border-radius:4px;padding:28px 32px;margin-top:4px;font-size:12.5px;line-height:1.45}
+  #result.show{display:block}
+  #result:focus{outline:none}
+  #result h1{font-family:Georgia,serif;font-size:19px;margin:0 0 2px}
+  #result .sub{font-size:11px;color:#333;margin:0 0 14px}
+  #result h2{font-family:Georgia,serif;font-size:13px;color:#2c4129;border-bottom:1px solid #2c4129;padding-bottom:3px;margin:16px 0 8px}
+  #result table{width:100%;border-collapse:collapse;margin-bottom:8px}
+  #result td{border:1px solid #999;padding:4px 6px;vertical-align:top}
+  #result td.k{width:30%;background:#eee;font-weight:600}
+  #result .pt{break-inside:avoid;border:1px solid #999;margin-bottom:10px}
+  #result .pt h3{margin:0;background:#2c4129;color:#fff;font-size:12px;padding:4px 6px}
+  #result .pt table{margin:0}
+  #result .pimg{display:flex;gap:8px;flex-wrap:wrap;padding:6px}
+  #result .pimg figure{margin:0;width:48%}
+  #result .pimg img{width:100%;border:1px solid #999}
+  #result .pimg figcaption{font-size:9.5px;color:#333;margin-top:2px}
+  #result .foot{margin-top:22px;border-top:1px solid #999;padding-top:8px;font-size:10px}
+  #result .sigrow{display:flex;gap:40px;margin-top:30px}
+  #result .sig{flex:1;border-top:1px solid #000;padding-top:3px;font-size:10px}
+
+  /* Modal */
+  .overlay{position:fixed;inset:0;background:rgba(31,38,32,.6);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px}
+  .modal{background:#fff;border-radius:6px;max-width:520px;width:100%;padding:24px 26px;border-top:5px solid var(--moss)}
+  .modal h2{font-family:Georgia,serif;margin:0 0 6px;color:var(--moss-d)}
+  .modal p{font-size:13px;color:var(--soil);margin:0 0 14px}
+  .modal .note{font-size:12px;color:var(--warn);margin-top:10px}
+
+  @media print{
+    header.app,fieldset,.toolbar,.overlay,#questions,.legend,button{display:none !important}
+    .wrap{max-width:none;padding:0}
+    #result{display:block !important;border:none;padding:0;margin:0}
+    @page{size:A4;margin:18mm 16mm}
+    *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  }
+</style>
+</head>
+<body>
+
+<div class="overlay" id="keyModal">
+  <div class="modal">
+    <h2>Claude API-Key</h2>
+    <p>Key eingeben, um Protokolle zu erzeugen. Er bleibt nur im Speicher dieses Tabs, geht direkt an <code>api.anthropic.com</code> und wird nicht gespeichert.</p>
+    <label>API-Key (sk-ant-…)</label>
+    <input id="keyInput" type="password" placeholder="sk-ant-...">
+    <label style="margin-top:12px">Modell</label>
+    <select id="modelSel">
+      <option value="claude-sonnet-4-6">claude-sonnet-4-6 (empfohlen)</option>
+      <option value="claude-opus-4-8">claude-opus-4-8 (genauer, teurer)</option>
+      <option value="claude-haiku-4-5-20251001">claude-haiku-4-5 (günstig)</option>
+    </select>
+    <label style="display:flex;align-items:center;gap:8px;font-weight:400;margin-top:14px;color:var(--ink)">
+      <input type="checkbox" id="remember" style="width:auto"> Key auf diesem Gerät speichern
+    </label>
+    <div class="row"><button onclick="saveKey()">Speichern &amp; starten</button>
+      <button class="ghost" onclick="forgetKey()">Key vergessen</button></div>
+    <p class="note">Tipp: Key mit Ausgabenlimit verwenden. „Speichern“ legt ihn lokal im Browser dieses Geräts ab.</p>
+  </div>
+</div>
+
+<header class="app">
+  <div class="wrap">
+    <div>
+      <h1>Geoökologische Kartierung</h1>
+      <p>Notiz + Fotos → standardisiertes Protokoll</p>
+    </div>
+    <button class="keystate" id="keyState" onclick="openKeyModal()">Key: —</button>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <fieldset>
+    <legend>Eingabe</legend>
+    <label>Begehungsnotiz (transkribierten Text einfügen)</label>
+    <textarea id="note" placeholder="Hier den Text deiner Sprachmemo einfügen – Lage, Boden, Relief, Vegetation/Biotop, Nutzung, Vorbelastung, Bewertung, Maßnahmen …"></textarea>
+
+    <div style="margin-top:16px">
+      <label>Fotos (vom iPhone hochladen)</label>
+      <button class="ghost" onclick="document.getElementById('imgIn').click()">+ Fotos auswählen</button>
+      <input id="imgIn" type="file" accept="image/*" multiple style="display:none" onchange="addImages(event)">
+      <div class="thumbs" id="thumbs"></div>
+    </div>
+
+    <div class="row" style="margin-top:18px">
+      <button id="genBtn" onclick="generate()">Protokoll erstellen</button>
+      <span class="hint">Ein API-Call mit Text + Fotos. Fotos werden vor dem Senden verkleinert.</span>
+    </div>
+  </fieldset>
+
+  <div id="questions"></div>
+
+  <p class="legend" id="legend" style="display:none">
+    <mark>Gelb</mark> = vom Modell abgeleitete/unsichere Angabe – fachlich prüfen. Das Protokoll unten ist direkt editierbar.
+  </p>
+
+  <div class="toolbar row" id="resultTools" style="display:none">
+    <button id="pdfBtn" onclick="exportPDF()">PDF erstellen &amp; teilen</button>
+    <button class="ghost" onclick="window.print()">Drucken</button>
+    <button class="ghost" onclick="document.getElementById('note').scrollIntoView()">Zurück zur Eingabe</button>
+  </div>
+
+  <div id="result"></div>
+
+</div>
+
+<script>
+/* ---------- API ---------- */
+let apiKey="", model="claude-sonnet-4-6";
+function openKeyModal(){document.getElementById("keyInput").value=apiKey;document.getElementById("modelSel").value=model;document.getElementById("keyModal").style.display="flex";}
+function saveKey(){apiKey=document.getElementById("keyInput").value.trim();model=document.getElementById("modelSel").value;
+  try{ if(document.getElementById("remember").checked){localStorage.setItem("geo_key",apiKey);localStorage.setItem("geo_model",model);} else {localStorage.removeItem("geo_key");localStorage.removeItem("geo_model");} }catch(e){}
+  document.getElementById("keyModal").style.display="none";updateKeyState();}
+function updateKeyState(){document.getElementById("keyState").textContent=apiKey?("Key: aktiv ✓ ("+model+")"):"Key: —";}
+function forgetKey(){apiKey="";try{localStorage.removeItem("geo_key");localStorage.removeItem("geo_model");}catch(e){}document.getElementById("keyInput").value="";const r=document.getElementById("remember");if(r)r.checked=false;updateKeyState();}
+function initKey(){try{const k=localStorage.getItem("geo_key"),m=localStorage.getItem("geo_model");if(k){apiKey=k;if(m)model=m;updateKeyState();const r=document.getElementById("remember");if(r)r.checked=true;return;}}catch(e){}openKeyModal();}
+
+async function callClaude(content, maxTokens){
+  if(!apiKey){openKeyModal();throw new Error("Kein API-Key gesetzt.");}
+  const res=await fetch("https://api.anthropic.com/v1/messages",{
+    method:"POST",
+    headers:{"content-type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+    body:JSON.stringify({model,max_tokens:maxTokens,system:SYS,messages:[{role:"user",content}]})
+  });
+  if(!res.ok) throw new Error(res.status+" – "+(await res.text()));
+  const data=await res.json();
+  return data.content.filter(c=>c.type==="text").map(c=>c.text).join("\n").trim();
+}
+
+const SYS="Du bist Fachassistenz für geoökologische Kartierungen bei Großbauvorhaben und erstellst aus einer frei gesprochenen (transkribierten) Begehungsnotiz und Fotos ein strukturiertes Protokoll. STRIKTE REGELN: Verwende ausschließlich Informationen, die im Text ausdrücklich genannt oder auf den Fotos klar erkennbar sind. Erfinde NIEMALS Koordinaten, Höhen, Bodentypen, Messwerte oder Artnamen. Fehlt eine Angabe, lass das Feld leer. Trage den Pfad jedes Wertes, den du nur abgeleitet/vermutet hast oder der unsicher ist, in 'unsicher' ein. Stelle für wichtige fehlende oder mehrdeutige Angaben konkrete deutsche Rückfragen in 'questions'. Antworte AUSSCHLIESSLICH mit gültigem JSON nach dem Schema, ohne Markdown und ohne weiteren Text.";
+
+/* ---------- Bilder ---------- */
+let images=[]; // {dataUrl, media, b64}
+function addImages(ev){
+  const files=[...ev.target.files]; let pending=files.length; if(!pending)return;
+  files.forEach(f=>processFile(f).then(o=>{images.push(o);if(--pending===0)renderThumbs();}).catch(()=>{if(--pending===0)renderThumbs();}));
+  ev.target.value="";
+}
+function processFile(file){
+  return new Promise((res,rej)=>{
+    const r=new FileReader();
+    r.onload=()=>{ const img=new Image();
+      img.onload=()=>{ let w=img.width,h=img.height,max=1568;
+        if(Math.max(w,h)>max){const s=max/Math.max(w,h);w=Math.round(w*s);h=Math.round(h*s);}
+        const c=document.createElement("canvas");c.width=w;c.height=h;c.getContext("2d").drawImage(img,0,0,w,h);
+        const dataUrl=c.toDataURL("image/jpeg",0.85);
+        res({dataUrl,media:"image/jpeg",b64:dataUrl.split(",")[1]});
+      }; img.onerror=rej; img.src=r.result; };
+    r.onerror=rej; r.readAsDataURL(file);
+  });
+}
+function renderThumbs(){
+  document.getElementById("thumbs").innerHTML=images.map((im,i)=>`
+    <div class="thumb"><img src="${im.dataUrl}"><button onclick="delImg(${i})">×</button><span>Foto ${i+1}</span></div>`).join("");
+}
+function delImg(i){images.splice(i,1);renderThumbs();}
+
+/* ---------- Generieren ---------- */
+let clarAnswers="";
+const PFIELDS=[["nr","Punkt-Nr. / Bezeichnung"],["koord","Koordinaten"],["hoehe","Höhe ü. NN (m)"],["geologie","Geologie / Ausgangsgestein"],["bodentyp","Bodentyp"],["bodenart","Bodenart / Substrat"],["relief","Relief / Hangneigung / Exposition"],["hydro","Hydrologie / Grundwasser"],["biotop","Biotoptyp / Vegetation"],["nutzung","Flächennutzung"],["vorbel","Vorbelastung / Beeinträchtigung"],["bewert","Bewertung des Punktes"],["bemerk","Bemerkungen"]];
+function esc(s){return (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+
+const SCHEMA = `{
+ "head":{"projekt":"","nr":"","ag":"(Auftraggeber)","bearb":"(Bearbeiter)","datum":"","wetter":"","naturraum":"","lage":"(Gemarkung/Flur/Lage)","grundlagen":"(verwendete Verfahren)"},
+ "points":[{"nr":"","koord":"","hoehe":"","geologie":"","bodentyp":"","bodenart":"","relief":"","hydro":"","biotop":"","nutzung":"","vorbel":"","bewert":"","bemerk":""}],
+ "summary":{"schutz":"(Schutzgebiete/Restriktionen)","bewertung":"(Gesamtbewertung/Eingriffsrelevanz)","massnahmen":"(Vermeidung/Minimierung/Ausgleich)","bemerk":""},
+ "photos":[{"idx":0,"caption":"(nur sichtbare Geländemerkmale; keine sichere Artbestimmung)"}],
+ "unsicher":["points.0.bodentyp"],
+ "questions":["..."]
+}`;
+
+async function generate(){
+  const btn=document.getElementById("genBtn"); const note=document.getElementById("note").value.trim();
+  if(!note && !images.length){alert("Bitte Notiztext einfügen und/oder Fotos hochladen.");return;}
+  const old=btn.textContent; btn.disabled=true; btn.textContent="… erstelle Protokoll";
+  try{
+    const content=[];
+    images.forEach(im=>content.push({type:"image",source:{type:"base64",media_type:im.media,data:im.b64}}));
+    let prompt = (images.length?`Oben sind ${images.length} Foto(s), Reihenfolge = idx 0..${images.length-1}.\n\n`:"")+
+      "Erzeuge das Protokoll als JSON nach genau diesem Schema (leere Felder bleiben leere Strings, klammertexte sind nur Hinweise):\n"+SCHEMA+
+      "\n\nBegehungsnotiz:\n"+note+
+      (clarAnswers?("\n\nErgänzende Antworten auf frühere Rückfragen:\n"+clarAnswers):"");
+    content.push({type:"text",text:prompt});
+    const out=await callClaude(content, 3200);
+    let d; try{ d=JSON.parse(out.replace(/```json|```/g,"").trim()); }
+    catch(e){ alert("Antwort war kein gültiges JSON:\n\n"+out.slice(0,800)); return; }
+    render(d);
+  }catch(e){ alert("Fehler:\n"+e.message); }
+  finally{ btn.disabled=false; btn.textContent=old; }
+}
+
+/* ---------- Rendern ---------- */
+let UNS=new Set();
+function mk(path,v){ if(v===undefined||v===null||String(v).trim()===""||/^\(.*\)$/.test(String(v).trim()))return ""; const t=esc(String(v)); return UNS.has(path)?`<mark>${t}</mark>`:t; }
+function row(path,label,v){ const c=mk(path,v); return c?`<tr><td class="k">${label}</td><td>${c}</td></tr>`:""; }
+
+function render(d){
+  UNS=new Set(Array.isArray(d.unsicher)?d.unsicher:[]);
+  const h=d.head||{};
+  let html=`<h1>Protokoll – Geoökologische Kartierung</h1>
+    <p class="sub">${mk("head.projekt",h.projekt)||"(Bauvorhaben offen)"} · erstellt am ${new Date().toLocaleDateString("de-DE")}</p>`;
+  html+=`<h2>Projektangaben</h2><table>
+    ${row("head.projekt","Bauvorhaben",h.projekt)}${row("head.nr","Projekt-Nr.",h.nr)}${row("head.ag","Auftraggeber",h.ag)}
+    ${row("head.bearb","Bearbeiter",h.bearb)}${row("head.datum","Datum der Begehung",h.datum)}${row("head.wetter","Witterung",h.wetter)}
+    ${row("head.naturraum","Naturraum",h.naturraum)}${row("head.lage","Untersuchungsraum / Lage",h.lage)}${row("head.grundlagen","Grundlagen / Verfahren",h.grundlagen)}</table>`;
+
+  const pts=Array.isArray(d.points)?d.points:[];
+  if(pts.length){
+    html+=`<h2>Kartierpunkte</h2>`;
+    pts.forEach((p,i)=>{
+      const title = mk(`points.${i}.nr`,p.nr)||("Punkt "+(i+1));
+      let t=`<div class="pt"><h3>${title}</h3><table>`;
+      PFIELDS.forEach(([k,lab])=>{ if(k!=="nr") t+=row(`points.${i}.${k}`,lab,p[k]); });
+      t+=`</table></div>`; html+=t;
+    });
+  }
+
+  if(images.length){
+    const caps={}; (Array.isArray(d.photos)?d.photos:[]).forEach(ph=>caps[ph.idx]=ph);
+    html+=`<h2>Fotodokumentation</h2><div class="pt"><div class="pimg">`;
+    images.forEach((im,i)=>{
+      const ph=caps[i]; const cap=ph?mk(`photos.${i}.caption`,ph.caption):"";
+      html+=`<figure><img src="${im.dataUrl}"><figcaption>Foto ${i+1}${cap?": "+cap:""}</figcaption></figure>`;
+    });
+    html+=`</div></div>`;
+  }
+
+  const s=d.summary||{};
+  if([s.schutz,s.bewertung,s.massnahmen,s.bemerk].some(x=>mk("",x)!=="" || (x&&!/^\(.*\)$/.test(String(x).trim())))){
+    html+=`<h2>Bewertung &amp; Maßnahmen</h2><table>
+      ${row("summary.schutz","Schutzgebiete / Restriktionen",s.schutz)}
+      ${row("summary.bewertung","Gesamtbewertung / Eingriffsrelevanz",s.bewertung)}
+      ${row("summary.massnahmen","Empfohlene Maßnahmen",s.massnahmen)}
+      ${row("summary.bemerk","Sonstige Bemerkungen",s.bemerk)}</table>`;
+  }
+
+  html+=`<div class="foot">Erstellt mit KI-Unterstützung (Vorschlag). Gelb markierte Angaben sind unsicher und wurden fachlich geprüft.</div>
+    <div class="sigrow"><div class="sig">Ort, Datum</div><div class="sig">Unterschrift Bearbeiter/in</div></div>`;
+
+  const res=document.getElementById("result");
+  res.innerHTML=html; res.classList.add("show"); res.contentEditable="true";
+  document.getElementById("legend").style.display="block";
+  document.getElementById("resultTools").style.display="flex";
+  renderQuestions(Array.isArray(d.questions)?d.questions:[]);
+  res.scrollIntoView({behavior:"smooth"});
+}
+
+function renderQuestions(qs){
+  const box=document.getElementById("questions");
+  qs=qs.filter(q=>q&&q.trim()&&!/^\.\.\.$/.test(q.trim()));
+  if(!qs.length){ box.classList.remove("show"); box.innerHTML=""; return; }
+  box.innerHTML=`<h3>Rückfragen zur Reduzierung von Unsicherheiten</h3>
+    <ul>${qs.map(q=>"<li>"+esc(q)+"</li>").join("")}</ul>
+    <label>Deine Antworten (frei formuliert)</label>
+    <textarea id="answers" style="min-height:80px"></textarea>
+    <div class="row"><button onclick="applyAnswers()">Antworten einarbeiten &amp; neu erstellen</button></div>`;
+  box.classList.add("show");
+}
+function applyAnswers(){
+  const a=(document.getElementById("answers").value||"").trim();
+  if(!a){alert("Bitte zuerst Antworten eintragen.");return;}
+  clarAnswers += (clarAnswers?"\n":"")+a;
+  generate();
+}
+
+/* ---------- PDF-Export (iPhone-tauglich) ---------- */
+async function exportPDF(){
+  const el=document.getElementById("result");
+  if(!el.classList.contains("show")){alert("Erst ein Protokoll erstellen.");return;}
+  if(typeof html2canvas==="undefined"||!window.jspdf){alert("PDF-Bibliothek nicht geladen – Internetverbindung nötig.");return;}
+  const btn=document.getElementById("pdfBtn");const old=btn.textContent;btn.disabled=true;btn.textContent="… erzeuge PDF";
+  try{
+    const canvas=await html2canvas(el,{scale:2,backgroundColor:"#ffffff",useCORS:true});
+    const {jsPDF}=window.jspdf;
+    const pdf=new jsPDF("p","mm","a4");
+    const margin=12,pageW=210,pageH=297,usableW=pageW-margin*2,usableH=pageH-margin*2;
+    const pxPerMm=canvas.width/usableW, sliceHpx=usableH*pxPerMm;
+    let y=0,page=0;
+    while(y<canvas.height){
+      const hpx=Math.min(sliceHpx,canvas.height-y);
+      const pc=document.createElement("canvas");pc.width=canvas.width;pc.height=hpx;
+      pc.getContext("2d").drawImage(canvas,0,y,canvas.width,hpx,0,0,canvas.width,hpx);
+      if(page>0)pdf.addPage();
+      pdf.addImage(pc.toDataURL("image/jpeg",0.92),"JPEG",margin,margin,usableW,hpx/pxPerMm);
+      y+=hpx;page++;
+    }
+    const blob=pdf.output("blob");
+    const fname="Kartierungsprotokoll_"+new Date().toISOString().slice(0,10)+".pdf";
+    const file=new File([blob],fname,{type:"application/pdf"});
+    if(navigator.canShare&&navigator.canShare({files:[file]})){
+      await navigator.share({files:[file],title:"Kartierungsprotokoll"});
+    }else{
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement("a");a.href=url;a.download=fname;document.body.appendChild(a);a.click();a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),4000);
+    }
+  }catch(e){ if(!(e&&e.name==="AbortError")) alert("PDF-Fehler:\n"+(e&&e.message?e.message:e)); }
+  finally{btn.disabled=false;btn.textContent=old;}
+}
+
+/* ---------- Start ---------- */
+initKey();
+</script>
+</body>
+</html>
