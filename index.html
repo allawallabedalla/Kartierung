@@ -96,7 +96,7 @@
 </head>
 <body>
 
-<div class="overlay" id="keyModal">
+<div class="overlay" id="keyModal" style="display:none">
   <div class="modal">
     <h2>Claude API-Key</h2>
     <p>Key eingeben, um Protokolle zu erzeugen. Er bleibt nur im Speicher dieses Tabs, geht direkt an <code>api.anthropic.com</code> und wird nicht gespeichert.</p>
@@ -216,7 +216,9 @@ function applyHardcoded(){
   if(HARDCODED.ghRepo)  ghRepo=HARDCODED.ghRepo;
   if(HARDCODED.ghToken) ghToken=HARDCODED.ghToken;
 }
-function openKeyModal(){document.getElementById("keyInput").value=apiKey;document.getElementById("modelSel").value=model;document.getElementById("keyModal").style.display="flex";}
+function openKeyModal(){
+    document.getElementById("keyModal").style.display = "flex";
+}
 function saveKey(){apiKey=document.getElementById("keyInput").value.trim();model=document.getElementById("modelSel").value;
   try{ if(document.getElementById("remember").checked){localStorage.setItem("geo_key",apiKey);localStorage.setItem("geo_model",model);} else {localStorage.removeItem("geo_key");localStorage.removeItem("geo_model");} }catch(e){}
   try{ if(navigator.storage&&navigator.storage.persist) navigator.storage.persist(); }catch(e){}
