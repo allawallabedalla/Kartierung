@@ -108,8 +108,29 @@
       <input type="checkbox" id="remember" style="width:auto"> Key auf diesem Gerät speichern
     </label>
     <div class="row"><button onclick="saveKey()">Speichern &amp; starten</button>
-      <button class="ghost" onclick="forgetKey()">Key vergessen</button></div>
-    <p class="note">Tipp: Key mit Ausgabenlimit verwenden. „Speichern“ legt ihn lokal im Browser dieses Geräts ab.</p>
+      <button class="ghost" onclick="forgetKey()">Key vergessen</button>
+      <button class="ghost" onclick="makeLaunchLink()">Einsatzlink erstellen</button></div>
+    <p class="note">Tipp: Key mit Ausgabenlimit verwenden. „Speichern“ legt ihn lokal ab. „Einsatzlink“ erzeugt eine Start-Adresse mit deinen Zugangsdaten für den Home-Bildschirm.</p>
+  </div>
+</div>
+
+<div class="overlay" id="ghModal" style="display:none">
+  <div class="modal">
+    <h2>GitHub-Speicher</h2>
+    <p>Speichert PDF, Eingabedaten und Fotos in ein (am besten privates) Repo unter <code>Protokolle/Jahr/Monat/Titel/</code>. Der Token bleibt nur auf diesem Gerät.</p>
+    <label>GitHub-Benutzername (owner)</label>
+    <input id="ghOwnerIn" placeholder="z. B. allawallabedalla">
+    <label style="margin-top:10px">Repository-Name</label>
+    <input id="ghRepoIn" placeholder="z. B. Kartierung-Daten">
+    <label style="margin-top:10px">Fine-grained Token (Contents: read/write)</label>
+    <input id="ghTokenIn" type="password" placeholder="github_pat_…">
+    <label style="display:flex;align-items:center;gap:8px;font-weight:400;margin-top:12px;color:var(--ink)">
+      <input type="checkbox" id="ghRemember" style="width:auto"> Auf diesem Gerät speichern
+    </label>
+    <div class="row"><button onclick="saveGh()">Speichern</button>
+      <button class="ghost" onclick="closeGh()">Abbrechen</button>
+      <button class="ghost" onclick="forgetGh()">Token vergessen</button></div>
+    <p class="note">Token nur mit Zugriff auf genau dieses eine Repo erstellen.</p>
   </div>
 </div>
 
@@ -119,7 +140,10 @@
       <h1>Geoökologische Kartierung</h1>
       <p>Notiz + Fotos → standardisiertes Protokoll</p>
     </div>
-    <button class="keystate" id="keyState" onclick="openKeyModal()">Key: —</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="keystate" id="keyState" onclick="openKeyModal()">Key: —</button>
+      <button class="keystate" id="ghState" onclick="openGhModal()">GitHub: —</button>
+    </div>
   </div>
 </header>
 
@@ -151,6 +175,7 @@
 
   <div class="toolbar row" id="resultTools" style="display:none">
     <button id="pdfBtn" onclick="exportPDF()">PDF erstellen &amp; teilen</button>
+    <button id="ghSaveBtn" onclick="saveToGithub()">In GitHub speichern</button>
     <button class="ghost" onclick="window.print()">Drucken</button>
     <button class="ghost" onclick="document.getElementById('note').scrollIntoView()">Zurück zur Eingabe</button>
   </div>
@@ -162,13 +187,51 @@
 <script>
 /* ---------- API ---------- */
 let apiKey="", model="claude-sonnet-4-6";
+let ghOwner="", ghRepo="", ghToken="";
+let lastData=null, lastInput={};
 function openKeyModal(){document.getElementById("keyInput").value=apiKey;document.getElementById("modelSel").value=model;document.getElementById("keyModal").style.display="flex";}
 function saveKey(){apiKey=document.getElementById("keyInput").value.trim();model=document.getElementById("modelSel").value;
   try{ if(document.getElementById("remember").checked){localStorage.setItem("geo_key",apiKey);localStorage.setItem("geo_model",model);} else {localStorage.removeItem("geo_key");localStorage.removeItem("geo_model");} }catch(e){}
+  try{ if(navigator.storage&&navigator.storage.persist) navigator.storage.persist(); }catch(e){}
   document.getElementById("keyModal").style.display="none";updateKeyState();}
 function updateKeyState(){document.getElementById("keyState").textContent=apiKey?("Key: aktiv ✓ ("+model+")"):"Key: —";}
 function forgetKey(){apiKey="";try{localStorage.removeItem("geo_key");localStorage.removeItem("geo_model");}catch(e){}document.getElementById("keyInput").value="";const r=document.getElementById("remember");if(r)r.checked=false;updateKeyState();}
 function initKey(){try{const k=localStorage.getItem("geo_key"),m=localStorage.getItem("geo_model");if(k){apiKey=k;if(m)model=m;updateKeyState();const r=document.getElementById("remember");if(r)r.checked=true;return;}}catch(e){}openKeyModal();}
+
+function openGhModal(){document.getElementById("ghOwnerIn").value=ghOwner;document.getElementById("ghRepoIn").value=ghRepo;document.getElementById("ghTokenIn").value=ghToken;document.getElementById("ghModal").style.display="flex";}
+function closeGh(){document.getElementById("ghModal").style.display="none";}
+function saveGh(){ghOwner=document.getElementById("ghOwnerIn").value.trim();ghRepo=document.getElementById("ghRepoIn").value.trim();ghToken=document.getElementById("ghTokenIn").value.trim();
+  try{ if(document.getElementById("ghRemember").checked){localStorage.setItem("geo_gh_owner",ghOwner);localStorage.setItem("geo_gh_repo",ghRepo);localStorage.setItem("geo_gh_token",ghToken);} else {["geo_gh_owner","geo_gh_repo","geo_gh_token"].forEach(k=>localStorage.removeItem(k));} }catch(e){}
+  closeGh();updateGhState();}
+function forgetGh(){ghOwner=ghRepo=ghToken="";try{["geo_gh_owner","geo_gh_repo","geo_gh_token"].forEach(k=>localStorage.removeItem(k));}catch(e){}["ghOwnerIn","ghRepoIn","ghTokenIn"].forEach(id=>{const e=document.getElementById(id);if(e)e.value="";});const r=document.getElementById("ghRemember");if(r)r.checked=false;updateGhState();}
+function updateGhState(){document.getElementById("ghState").textContent=(ghToken&&ghOwner&&ghRepo)?("GitHub: "+ghOwner+"/"+ghRepo):"GitHub: —";}
+function initGh(){try{const o=localStorage.getItem("geo_gh_owner"),rp=localStorage.getItem("geo_gh_repo"),t=localStorage.getItem("geo_gh_token");if(o)ghOwner=o;if(rp)ghRepo=rp;if(t)ghToken=t;const r=document.getElementById("ghRemember");if(t&&r)r.checked=true;}catch(e){}updateGhState();}
+
+async function makeLaunchLink(){
+  const k=(document.getElementById("keyInput").value.trim())||apiKey;
+  const p=new URLSearchParams();
+  if(k)p.set("k",k); p.set("m",(document.getElementById("modelSel").value||model));
+  if(ghOwner)p.set("o",ghOwner); if(ghRepo)p.set("r",ghRepo); if(ghToken)p.set("t",ghToken);
+  const url=location.origin+location.pathname+"#"+p.toString();
+  try{ await navigator.clipboard.writeText(url); alert("Einsatzlink kopiert.\n\nIn Safari in die Adresszeile einfügen, öffnen, dann Teilen → „Zum Home-Bildschirm“. Diese App startet dann immer einsatzbereit."); }
+  catch(e){ prompt("Einsatzlink markieren & kopieren:",url); }
+}
+function readHashCreds(){
+  if(!location.hash) return;
+  const p=new URLSearchParams(location.hash.slice(1));
+  let got=false;
+  if(p.get("k")){apiKey=p.get("k").trim();got=true;}
+  if(p.get("m")){model=p.get("m").trim();}
+  if(p.get("o")){ghOwner=p.get("o").trim();got=true;}
+  if(p.get("r")){ghRepo=p.get("r").trim();got=true;}
+  if(p.get("t")){ghToken=p.get("t").trim();got=true;}
+  if(got){
+    try{ if(apiKey){localStorage.setItem("geo_key",apiKey);localStorage.setItem("geo_model",model);}
+         if(ghToken){localStorage.setItem("geo_gh_owner",ghOwner);localStorage.setItem("geo_gh_repo",ghRepo);localStorage.setItem("geo_gh_token",ghToken);} }catch(e){}
+    try{ if(navigator.storage&&navigator.storage.persist) navigator.storage.persist(); }catch(e){}
+    try{ history.replaceState(null,"",location.pathname+location.search); }catch(e){}
+  }
+}
 
 async function callClaude(content, maxTokens){
   if(!apiKey){openKeyModal();throw new Error("Kein API-Key gesetzt.");}
@@ -236,6 +299,7 @@ async function generate(){
       "\n\nBegehungsnotiz:\n"+note+
       (clarAnswers?("\n\nErgänzende Antworten auf frühere Rückfragen:\n"+clarAnswers):"");
     content.push({type:"text",text:prompt});
+    lastInput={note:note,answers:clarAnswers,model:model};
     const out=await callClaude(content, 3200);
     let d; try{ d=JSON.parse(out.replace(/```json|```/g,"").trim()); }
     catch(e){ alert("Antwort war kein gültiges JSON:\n\n"+out.slice(0,800)); return; }
@@ -250,6 +314,7 @@ function mk(path,v){ if(v===undefined||v===null||String(v).trim()===""||/^\(.*\)
 function row(path,label,v){ const c=mk(path,v); return c?`<tr><td class="k">${label}</td><td>${c}</td></tr>`:""; }
 
 function render(d){
+  lastData=d;
   UNS=new Set(Array.isArray(d.unsicher)?d.unsicher:[]);
   const h=d.head||{};
   let html=`<h1>Protokoll – Geoökologische Kartierung</h1>
@@ -319,27 +384,31 @@ function applyAnswers(){
 }
 
 /* ---------- PDF-Export (iPhone-tauglich) ---------- */
+async function buildPdfBlob(){
+  const el=document.getElementById("result");
+  const canvas=await html2canvas(el,{scale:2,backgroundColor:"#ffffff",useCORS:true});
+  const {jsPDF}=window.jspdf;
+  const pdf=new jsPDF("p","mm","a4");
+  const margin=12,pageW=210,pageH=297,usableW=pageW-margin*2,usableH=pageH-margin*2;
+  const pxPerMm=canvas.width/usableW, sliceHpx=usableH*pxPerMm;
+  let y=0,page=0;
+  while(y<canvas.height){
+    const hpx=Math.min(sliceHpx,canvas.height-y);
+    const pc=document.createElement("canvas");pc.width=canvas.width;pc.height=hpx;
+    pc.getContext("2d").drawImage(canvas,0,y,canvas.width,hpx,0,0,canvas.width,hpx);
+    if(page>0)pdf.addPage();
+    pdf.addImage(pc.toDataURL("image/jpeg",0.92),"JPEG",margin,margin,usableW,hpx/pxPerMm);
+    y+=hpx;page++;
+  }
+  return pdf.output("blob");
+}
 async function exportPDF(){
   const el=document.getElementById("result");
   if(!el.classList.contains("show")){alert("Erst ein Protokoll erstellen.");return;}
   if(typeof html2canvas==="undefined"||!window.jspdf){alert("PDF-Bibliothek nicht geladen – Internetverbindung nötig.");return;}
   const btn=document.getElementById("pdfBtn");const old=btn.textContent;btn.disabled=true;btn.textContent="… erzeuge PDF";
   try{
-    const canvas=await html2canvas(el,{scale:2,backgroundColor:"#ffffff",useCORS:true});
-    const {jsPDF}=window.jspdf;
-    const pdf=new jsPDF("p","mm","a4");
-    const margin=12,pageW=210,pageH=297,usableW=pageW-margin*2,usableH=pageH-margin*2;
-    const pxPerMm=canvas.width/usableW, sliceHpx=usableH*pxPerMm;
-    let y=0,page=0;
-    while(y<canvas.height){
-      const hpx=Math.min(sliceHpx,canvas.height-y);
-      const pc=document.createElement("canvas");pc.width=canvas.width;pc.height=hpx;
-      pc.getContext("2d").drawImage(canvas,0,y,canvas.width,hpx,0,0,canvas.width,hpx);
-      if(page>0)pdf.addPage();
-      pdf.addImage(pc.toDataURL("image/jpeg",0.92),"JPEG",margin,margin,usableW,hpx/pxPerMm);
-      y+=hpx;page++;
-    }
-    const blob=pdf.output("blob");
+    const blob=await buildPdfBlob();
     const fname="Kartierungsprotokoll_"+new Date().toISOString().slice(0,10)+".pdf";
     const file=new File([blob],fname,{type:"application/pdf"});
     if(navigator.canShare&&navigator.canShare({files:[file]})){
@@ -353,8 +422,46 @@ async function exportPDF(){
   finally{btn.disabled=false;btn.textContent=old;}
 }
 
+/* ---------- GitHub-Speicher ---------- */
+function b64utf8(str){return btoa(unescape(encodeURIComponent(str)));}
+function blobToB64(blob){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(",")[1]);r.onerror=rej;r.readAsDataURL(blob);});}
+async function ghPut(path,contentB64,message){
+  const url="https://api.github.com/repos/"+ghOwner+"/"+ghRepo+"/contents/"+path.split("/").map(encodeURIComponent).join("/");
+  const headers={"Authorization":"Bearer "+ghToken,"Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28","Content-Type":"application/json"};
+  let sha;
+  try{ const g=await fetch(url,{headers}); if(g.ok){ sha=(await g.json()).sha; } }catch(e){}
+  const body={message:message,content:contentB64}; if(sha)body.sha=sha;
+  const r=await fetch(url,{method:"PUT",headers,body:JSON.stringify(body)});
+  if(!r.ok) throw new Error("GitHub "+r.status+" – "+(await r.text()).slice(0,200));
+}
+async function saveToGithub(){
+  const el=document.getElementById("result");
+  if(!el.classList.contains("show")){alert("Erst ein Protokoll erstellen.");return;}
+  if(!ghToken||!ghOwner||!ghRepo){ openGhModal(); return; }
+  const btn=document.getElementById("ghSaveBtn");const old=btn.textContent;btn.disabled=true;
+  try{
+    const h=(lastData&&lastData.head)||{};
+    let titel=(h.projekt&&!/^\(.*\)$/.test(String(h.projekt)))?String(h.projekt):"";
+    if(!titel){ titel=prompt("Titel für den Ordner:","Protokoll")||"Protokoll"; }
+    const san=titel.replace(/[\\/:*?"<>|]+/g,"_").replace(/\s+/g," ").trim().slice(0,80)||"Protokoll";
+    let dt=(h.datum&&/^\d{4}-\d{2}-\d{2}/.test(h.datum))?new Date(h.datum):new Date();
+    if(isNaN(dt.getTime())) dt=new Date();
+    const base="Protokolle/"+dt.getFullYear()+"/"+String(dt.getMonth()+1).padStart(2,"0")+"/"+san;
+
+    btn.textContent="… PDF"; const pdfB64=await blobToB64(await buildPdfBlob());
+    btn.textContent="… speichere Protokoll"; await ghPut(base+"/protokoll.pdf",pdfB64,"Protokoll "+san);
+    const eingabe={erstellt:new Date().toISOString(),modell:model,notiz:(lastInput.note||""),antworten:(lastInput.answers||""),protokoll:lastData};
+    btn.textContent="… speichere Daten"; await ghPut(base+"/eingabe.json",b64utf8(JSON.stringify(eingabe,null,2)),"Eingabedaten "+san);
+    for(let i=0;i<images.length;i++){ btn.textContent="… Bild "+(i+1)+"/"+images.length; await ghPut(base+"/bilder/foto"+(i+1)+".jpg",images[i].b64,"Foto "+(i+1)+" "+san); }
+    alert("Gespeichert in "+ghOwner+"/"+ghRepo+":\n"+base+"/");
+  }catch(e){ alert("GitHub-Fehler:\n"+(e&&e.message?e.message:e)); }
+  finally{ btn.disabled=false; btn.textContent=old; }
+}
+
 /* ---------- Start ---------- */
+readHashCreds();
 initKey();
+initGh();
 </script>
 </body>
 </html>
